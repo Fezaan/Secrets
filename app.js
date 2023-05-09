@@ -1,5 +1,5 @@
 //jshint esversion:6
-
+require("dotenv").config();
 const express = require("express");
 const ejs = require("ejs");
 const bodyParser = require("body-parser");
@@ -15,10 +15,7 @@ let userSchema, User;
 
 async function main() {
   try {
-    await mongoose.connect(
-      "mongodb://127.0.0.1:27017/secretDB?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+1.8.0",
-      { useNewUrlParser: true }
-    );
+    await mongoose.connect(process.env.uri, { useNewUrlParser: true });
     console.log("Connected");
 
     userSchema = new mongoose.Schema({
@@ -26,9 +23,8 @@ async function main() {
       password: String,
     });
 
-    let secret = "Thiscanbeourownlittlesecret";
     userSchema.plugin(encrypt, {
-      secret: secret,
+      secret: process.env.secret,
       encryptedFields: ["password"],
     });
 
