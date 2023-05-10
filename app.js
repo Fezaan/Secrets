@@ -4,7 +4,8 @@ const express = require("express");
 const ejs = require("ejs");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
-const md5 = require("md5");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 const app = express();
 app.use(express.static("public"));
@@ -40,7 +41,8 @@ app
   })
   .post(async (req, res) => {
     let userName = req.body.username;
-    let pass = md5(req.body.password);
+    let pass = req.body.password;
+
     let found;
     try {
       found = await User.findOne({ email: userName });
@@ -48,9 +50,9 @@ app
       res.send(err);
     }
     if (found) {
-      if (found.password === pass) {
-        res.render("secrets");
-      }
+      bcrypt.compare(pass, found.password, function (err, result) {
+        if (result) res.render("secrets");
+      });
     } else {
       res.redirect("/register");
     }
@@ -61,16 +63,18 @@ app
     res.render("register");
   })
   .post(async (req, res) => {
-    let newUser = new User({
-      email: req.body.username,
-      password: md5(req.body.password),
+    bcrypt.hash(req.body.password, saltRounds, async function (err, hash) {
+      let newUser = new User({
+        email: req.body.username,
+        password: hash,
+      });
+      try {
+        await newUser.save();
+        res.render("secrets");
+      } catch (err) {
+        res.send(err);
+      }
     });
-    try {
-      await newUser.save();
-      res.render("secrets");
-    } catch (err) {
-      res.send(err);
-    }
   });
 
 app.listen("3000", () => {
