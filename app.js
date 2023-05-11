@@ -7,6 +7,8 @@ const mongoose = require("mongoose");
 const session = require("express-session");
 const passport = require("passport");
 const passportLocalMongoose = require("passport-local-mongoose");
+const GoogleStrategy = require("passport-google-oauth20").Strategy;
+const findOrCreate = require("mongoose-findorcreate");
 
 const app = express();
 app.use(express.static("public"));
@@ -34,15 +36,39 @@ async function main() {
     userSchema = new mongoose.Schema({
       email: String,
       password: String,
+      googleId: String,
     });
 
     userSchema.plugin(passportLocalMongoose);
+    userSchema.plugin(findOrCreate);
 
     User = new mongoose.model("User", userSchema);
 
     passport.use(User.createStrategy());
-    passport.serializeUser(User.serializeUser());
-    passport.deserializeUser(User.deserializeUser());
+    passport.serializeUser(function (user, done) {
+      done(null, user);
+    });
+
+    passport.deserializeUser(function (user, done) {
+      done(null, user);
+    });
+
+    passport.use(
+      new GoogleStrategy(
+        {
+          clientID: process.env.clientID,
+          clientSecret: process.env.clientSecret,
+          callbackURL: "http://localhost:3000/auth/google/secrets",
+          userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
+        },
+        function (accessToken, refreshToken, profile, cb) {
+          console.log(profile);
+          User.findOrCreate({ googleId: profile.id }, function (err, user) {
+            return cb(err, user);
+          });
+        }
+      )
+    );
   } catch (err) {
     console.log(err);
   }
@@ -111,10 +137,32 @@ app.route("/secrets").get((req, res) => {
   }
 });
 
+/////////////////////////////////////// route: logout //////////////////////////////////////////
+
 app.get("/logout", async (req, res) => {
-  req.logout((err)=>{console.log(err)});
+  req.logout((err) => {
+    console.log(err);
+  });
   res.redirect("/");
 });
+
+/////////////////////////////////////// route: google authentiacation //////////////////////////////////////////
+
+app.get(
+  "/auth/google",
+  passport.authenticate("google", { scope: ["profile"] })
+);
+
+app.get(
+  "/auth/google/secrets",
+  passport.authenticate("google", { failureRedirect: "/login" }),
+  function (req, res) {
+    // Successful authentication, redirect home.
+    res.redirect("/secrets");
+  }
+);
+
+/////////////////////////////////////// Listening //////////////////////////////////////////
 
 app.listen("3000", () => {
   console.log("Server started at port 3000");
