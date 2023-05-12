@@ -37,6 +37,7 @@ async function main() {
       email: String,
       password: String,
       googleId: String,
+      secret: String,
     });
 
     userSchema.plugin(passportLocalMongoose);
@@ -62,7 +63,7 @@ async function main() {
           userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
         },
         function (accessToken, refreshToken, profile, cb) {
-          console.log(profile);
+          // console.log(profile);
           User.findOrCreate({ googleId: profile.id }, function (err, user) {
             return cb(err, user);
           });
@@ -129,11 +130,14 @@ app
 
 /////////////////////////////////////// route: secrets //////////////////////////////////////////
 
-app.route("/secrets").get((req, res) => {
-  if (req.isAuthenticated()) {
-    res.render("secrets");
-  } else {
-    res.redirect("/login");
+app.route("/secrets").get(async (req, res) => {
+  try {
+    let foundUsers = await User.find({ secret: { $ne: null } });
+    if (foundUsers) {
+      res.render("secrets", { usersWithSecrets: foundUsers });
+    }
+  } catch (err) {
+    res.send(err);
   }
 });
 
@@ -161,6 +165,31 @@ app.get(
     res.redirect("/secrets");
   }
 );
+
+/////////////////////////////////////// route: /submit //////////////////////////////////////////
+
+app
+  .route("/submit")
+  .get(async (req, res) => {
+    if (req.isAuthenticated()) {
+      res.render("submit");
+    } else {
+      res.redirect("/login");
+    }
+  })
+  .post(async (req, res) => {
+    let submittedSecret = req.body.secret;
+    try {
+      let look = await User.findOne({ _id: req.user._id });
+      if (look != null) {
+        look.secret = submittedSecret;
+        await look.save();
+        res.redirect("/secrets");
+      }
+    } catch (err) {
+      res.send(err);
+    }
+  });
 
 /////////////////////////////////////// Listening //////////////////////////////////////////
 
